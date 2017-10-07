@@ -36,6 +36,8 @@ var uInput = ""
 var totalMessages = 0
 
 //TODO add functionality like exiting menus if you don't want them & remove totalMessage counter since it was just for debugging(maybe)
+//add name highlighting when people use @username in their messages
+//add emote mode maybe?
 
 func main() {
 	if err := termbox.Init(); err != nil {
@@ -68,7 +70,7 @@ func main() {
 
 	var c *irc.Conn
 
-	startMenu := newMenuBox("What channel do you want to talk in? (e.g. vinesauce)", func(){
+	startMenu := newMenuBox("What channel do you want to talk in? (e.g. vinesauce) or press ESC to quit", func(){
 		channel = "#" + strings.ToLower(uInput)
 		uInput = ""
 		c = connect(cfg, channel)
@@ -96,19 +98,35 @@ chat_loop:
 			case termbox.KeyEsc:
 				break chat_loop
 			case termbox.KeyCtrlC:
-				uInput = client.ChatBoxes[client.CurrentChatBox].Lines[len(client.ChatBoxes[client.CurrentChatBox].Lines)-1].Line
+				if client.Initialized{
+					uInput = client.ChatBoxes[client.CurrentChatBox].Lines[len(client.ChatBoxes[client.CurrentChatBox].Lines)-1].Line
+				}
+			case termbox.KeyCtrlB:
+				if client.MenuOpen && client.Initialized{
+					client.MenuOpen = false
+				}
 			case termbox.KeyF9:
-				updateMode()
+				if client.Initialized {
+					updateMode()
+				}
 			case termbox.KeyF2:
-				addChatChannel(c)
+				if client.Initialized {
+					addChatChannel(c)
+				}
 			case termbox.KeyF5:
-				switchChannel()
+				if client.Initialized {
+					switchChannel()
+				}
 			case termbox.KeyF3:
-				leaveChatChannel(c)
+				if client.Initialized {
+					leaveChatChannel(c)
+				}
 			case termbox.KeyF12:
 				client.SidebarActive = !client.SidebarActive
 			case termbox.KeyTab:
-				remainingLetters()
+				if client.Initialized {
+					remainingLetters()
+				}
 			case termbox.KeySpace:
 				uInput += " "
 			case termbox.KeyEnter:
@@ -175,10 +193,49 @@ func redraw_all() {
 	} else if client.Initialized {
 		//draw the current chat lines
 		for i := len(client.ChatBoxes[client.CurrentChatBox].Lines) - 1; i >= 0; i-- {
-			//this is a little dense lmao
-			tbprint(1, h - pos - 2, termbox.ColorWhite, coldef, client.ChatBoxes[client.CurrentChatBox].Lines[i].Line)
 			tbprint(1, h - pos - 2, client.ChatBoxes[client.CurrentChatBox].Lines[i].NickColor, coldef, client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick + ": ")
-			tbprint(1 + len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick + ": "), h - pos - 2, termbox.ColorWhite, termbox.ColorDefault, client.ChatBoxes[client.CurrentChatBox].Lines[i].Line)
+
+			if strings.Contains(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line, "@") {
+
+				if strings.ToLower(atUsername(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line)) == strings.ToLower(client.Username) {
+					tbprint(1 + len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick + ": "), h - pos - 2, termbox.ColorBlack, termbox.ColorWhite, client.ChatBoxes[client.CurrentChatBox].Lines[i].Line)
+				} else {
+					userName := strings.ToLower(atUsername(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line))
+
+					userColor := client.UserColors[userName]
+
+					if  userColor == termbox.ColorDefault {
+						userColor = getRandomColor()
+						client.UserColors[userName] = userColor
+					}
+
+					parsing := false
+
+					for j := 0; j < len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line); j++ {
+
+						if parsing {
+
+							if client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j] == ' '{
+								parsing = false
+							}
+
+							tbprint(1 + len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick + ": ") + j, h - pos - 2, userColor, coldef, string(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j]))
+
+						} else if client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j] == '@' {
+							parsing = true
+							tbprint(1 + len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick + ": ") + j, h - pos - 2, userColor, coldef, string(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j]))
+						} else {
+							tbprint(1 + len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick + ": ") + j, h - pos - 2, termbox.ColorWhite, coldef, string(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j]))
+						}
+
+					}
+
+				}
+
+			} else {
+				tbprint(1 + len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick + ": "), h - pos - 2, termbox.ColorWhite, termbox.ColorDefault, client.ChatBoxes[client.CurrentChatBox].Lines[i].Line)
+			}
+
 			pos++
 		}
 
@@ -299,11 +356,28 @@ func connect(cfg *irc.Config, channel string)*irc.Conn{
 			client.ChatBoxes[line.Target()].UserNames = append(client.ChatBoxes[line.Target()].UserNames, line.Nick)
 		}
 
-		newMessage(ChatLine{
-			Nick: line.Nick,
-			NickColor: getNickColor(line.Nick),
-			Line: line.Args[1],
-		}, line.Target())
+		w, _ := termbox.Size()
+		splitMessage := make([]string, 0)
+		newString := ""
+		for i := 0; i < len(line.Args[1]); i++{
+			chr := string(line.Args[1][i])
+
+			if len(newString) + 1 <= int(float64(w) * 0.8) || chr != " "{
+				newString += chr
+			} else {
+				splitMessage = append(splitMessage, newString)
+				newString = ""
+			}
+		}
+		splitMessage = append(splitMessage, newString)
+
+		for i := 0; i < len(splitMessage); i++{
+			newMessage(ChatLine{
+				Nick: line.Nick,
+				NickColor: getNickColor(line.Nick),
+				Line: splitMessage[i],
+			}, line.Target())
+		}
 	})
 
 	if err := c.Connect(); err != nil {
@@ -318,7 +392,7 @@ func addChatChannel(conn *irc.Conn){
 
 	newChannel := ""
 
-	newChannelMenu := newMenuBox("What channel do you want to talk in? (e.g. vinesauce)", func(){
+	newChannelMenu := newMenuBox("What channel do you want to talk in? (e.g. vinesauce) or press CRTL+B to go back", func(){
 		client.Locked = true //although it shouldn't be an issue here, better safe than sorry
 		newChannel = "#" + strings.ToLower(uInput)
 		uInput = ""
@@ -327,7 +401,7 @@ func addChatChannel(conn *irc.Conn){
 		client.CurrentChatBox = newChannel
 		client.ChatBoxes[newChannel] = getChatBox(newChannel, chat)
 		client.Initialized = true
-		client.CurrentChatBoxInt++
+		client.CurrentChatBoxInt = len(client.ChatBoxList) - 1
 		client.Locked = false
 		//redraw_all()
 	})
@@ -338,8 +412,7 @@ func addChatChannel(conn *irc.Conn){
 func leaveChatChannel(conn *irc.Conn){
 	client.Locked = true
 	if len(client.ChatBoxList) > 1 {
-		debugMessage("trying to leave")
-		conn.Raw("LEAVE " + client.CurrentChatBox)
+		conn.Part(client.CurrentChatBox)
 		client.ChatBoxList = append(client.ChatBoxList[:client.CurrentChatBoxInt], client.ChatBoxList[client.CurrentChatBoxInt+1:]...)
 		delete(client.ChatBoxes, client.CurrentChatBox)
 
