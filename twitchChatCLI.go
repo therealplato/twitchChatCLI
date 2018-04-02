@@ -5,10 +5,10 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/buger/jsonparser"
+	"github.com/davecgh/go-spew/spew"
 	irc "github.com/fluffle/goirc/client"
 	"github.com/mattn/go-runewidth"
 	"github.com/nsf/termbox-go"
@@ -39,143 +39,146 @@ var totalMessages = 0
 //add emote mode maybe?
 
 func redraw_all() {
+	spew.Dump(client.BoxLines())
 	if client.Locked { //used to prevent this entire thing for a bit because if we don't we can get some weird nil pointers / seg faults
 		return
 	}
 
-	w, h := termbox.Size()
+	/*
+		w, h := termbox.Size()
 
-	const coldef = termbox.ColorDefault
+		const coldef = termbox.ColorDefault
 
-	termbox.Clear(coldef, coldef)
+		termbox.Clear(coldef, coldef)
 
-	pos := 0
+		pos := 0
 
-	if client.MenuOpen {
-		userString := "Input: " + uInput
-		tbprint(w/2-len(client.CurrentMenu.title)/2, h/2, termbox.ColorWhite, coldef, client.CurrentMenu.title)
-		tbprint(w/2-len("Input: "+uInput)/2, h/2+2, termbox.ColorWhite, coldef, userString) //TODO make this more flexible
-		termbox.SetCursor(len(userString)+w/2-len("Input: "+uInput)/2, h/2+2)
-	} else if client.Initialized {
-		termbox.Flush()
-		return
-	}
-	//draw the current chat lines
-	// for i := len(client.Boxes[client.Box].Lines)
-	// for i := len(client.BoxLines())
-	for i := len(client.ChatBoxes[client.CurrentChatBox].Lines) - 1; i >= 0; i-- {
-		tbprint(1, h-pos-2, client.ChatBoxes[client.CurrentChatBox].Lines[i].NickColor, coldef, client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": ")
+		if client.MenuOpen {
+			userString := "Input: " + uInput
+			tbprint(w/2-len(client.CurrentMenu.title)/2, h/2, termbox.ColorWhite, coldef, client.CurrentMenu.title)
+			tbprint(w/2-len("Input: "+uInput)/2, h/2+2, termbox.ColorWhite, coldef, userString) //TODO make this more flexible
+			termbox.SetCursor(len(userString)+w/2-len("Input: "+uInput)/2, h/2+2)
+		} else if client.Initialized {
+			termbox.Flush()
+			return
+		}
+		//draw the current chat lines
+		// for i := len(client.Boxes[client.Box].Lines)
+		// for i := len(client.BoxLines())
+		for i := len(client.ChatBoxes[client.CurrentChatBox].Lines) - 1; i >= 0; i-- {
+			tbprint(1, h-pos-2, client.ChatBoxes[client.CurrentChatBox].Lines[i].NickColor, coldef, client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": ")
 
-		if strings.Contains(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line, "@") {
+			if strings.Contains(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line, "@") {
 
-			if strings.ToLower(atUsername(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line)) == strings.ToLower(client.Username) {
-				tbprint(1+len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": "), h-pos-2, termbox.ColorBlack, termbox.ColorWhite, client.ChatBoxes[client.CurrentChatBox].Lines[i].Line)
-			} else {
-				userName := strings.ToLower(atUsername(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line))
+				if strings.ToLower(atUsername(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line)) == strings.ToLower(client.Username) {
+					tbprint(1+len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": "), h-pos-2, termbox.ColorBlack, termbox.ColorWhite, client.ChatBoxes[client.CurrentChatBox].Lines[i].Line)
+				} else {
+					userName := strings.ToLower(atUsername(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line))
 
-				userColor := client.UserColors[userName]
+					userColor := client.UserColors[userName]
 
-				if userColor == termbox.ColorDefault {
-					userColor = getRandomColor()
-					client.UserColors[userName] = userColor
-				}
+					if userColor == termbox.ColorDefault {
+						userColor = getRandomColor()
+						client.UserColors[userName] = userColor
+					}
 
-				parsing := false
+					parsing := false
 
-				for j := 0; j < len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line); j++ {
+					for j := 0; j < len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line); j++ {
 
-					if parsing {
+						if parsing {
 
-						if client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j] == ' ' {
-							parsing = false
+							if client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j] == ' ' {
+								parsing = false
+							}
+
+							tbprint(1+len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": ")+j, h-pos-2, userColor, coldef, string(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j]))
+
+						} else if client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j] == '@' {
+							parsing = true
+							tbprint(1+len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": ")+j, h-pos-2, userColor, coldef, string(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j]))
+						} else {
+							tbprint(1+len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": ")+j, h-pos-2, termbox.ColorWhite, coldef, string(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j]))
 						}
 
-						tbprint(1+len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": ")+j, h-pos-2, userColor, coldef, string(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j]))
-
-					} else if client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j] == '@' {
-						parsing = true
-						tbprint(1+len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": ")+j, h-pos-2, userColor, coldef, string(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j]))
-					} else {
-						tbprint(1+len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": ")+j, h-pos-2, termbox.ColorWhite, coldef, string(client.ChatBoxes[client.CurrentChatBox].Lines[i].Line[j]))
 					}
 
 				}
 
+			} else {
+				tbprint(1+len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": "), h-pos-2, termbox.ColorWhite, termbox.ColorDefault, client.ChatBoxes[client.CurrentChatBox].Lines[i].Line)
+				// tbprint(1+len(client.BoxLines()[i].Nick+": "), h-pos-2, termbox.ColorWhite, termbox.ColorDefault, client.BoxLines()[i].Line)
+				// for i := len(client.BoxLines())
 			}
 
+			pos++
+		}
+
+		//draw the chat tabs at the top of the screen
+
+		for i := 0; i < w; i++ {
+			termbox.SetCell(i, 0, ' ', coldef, coldef)
+		}
+
+		tabText := "Current channels: "
+
+		tbprint(0, 0, termbox.ColorWhite, coldef, tabText)
+
+		var j = len(tabText) + 1
+		for i := 0; i < len(client.ChatBoxList); i++ {
+
+			if client.CurrentChatBox == client.ChatBoxList[i] {
+				tbprint(j, 0, termbox.ColorBlack, termbox.ColorWhite, client.ChatBoxList[i])
+			} else {
+				tbprint(j, 0, termbox.ColorWhite, termbox.ColorBlack, client.ChatBoxList[i])
+			}
+
+			j += len(client.ChatBoxList[i]) + 1
+		}
+
+		//draw the sidebar if it's active
+
+		if client.SidebarActive {
+			for i := 0; i < len(sideBarOptions); i++ {
+				tbprint(w-30, i, termbox.ColorWhite, coldef, sideBarOptions[i])
+			}
+
+			//TODO make chat mode more flexible maybe map it or something
+			modeText := "current mode: "
+			tbprint(w-30, len(sideBarOptions), termbox.ColorWhite, coldef, modeText)
+			if client.ChatMode == 0 {
+				tbprint(w-30+len(modeText), len(sideBarOptions), termbox.ColorBlue, coldef, "normal")
+			} else {
+				tbprint(w-30+len(modeText), len(sideBarOptions), termbox.ColorRed, coldef, "fullwidth")
+			}
+			tbprint(w-30, len(sideBarOptions)+1, termbox.ColorWhite, coldef, "Total Messages received: "+strconv.Itoa(totalMessages))
+		}
+
+		//draw user input
+		userString := client.Username + ": " + uInput
+		tbprint(1, h-1, termbox.ColorBlue, coldef, userString)
+		termbox.SetCursor(len(userString)+1, h-1)
+
+		//draw @ search menu
+		if strings.Contains(uInput, "@") && strings.Compare(atUsername(uInput), client.FoundUsername) != 0 {
+			client.SearchMenuOpen = true
+
+			possibleNames := Filter(client.ChatBoxes[client.CurrentChatBox].UserNames, func(v string) bool {
+				return strings.Contains(v, atUsername(uInput))
+			})
+
+			if len(possibleNames) > 0 {
+				client.FoundUsername = possibleNames[0]
+			}
+
+			for i := 0; i < len(possibleNames); i++ {
+				tbprint(1, h-i-2, termbox.ColorWhite, termbox.ColorWhite, "                             ")
+				tbprint(1, h-i-2, client.UserColors[possibleNames[i]], termbox.ColorWhite, possibleNames[i])
+			}
 		} else {
-			tbprint(1+len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": "), h-pos-2, termbox.ColorWhite, termbox.ColorDefault, client.ChatBoxes[client.CurrentChatBox].Lines[i].Line)
-			// tbprint(1+len(client.BoxLines()[i].Nick+": "), h-pos-2, termbox.ColorWhite, termbox.ColorDefault, client.BoxLines()[i].Line)
-			// for i := len(client.BoxLines())
+			client.SearchMenuOpen = false
 		}
-
-		pos++
-	}
-
-	//draw the chat tabs at the top of the screen
-
-	for i := 0; i < w; i++ {
-		termbox.SetCell(i, 0, ' ', coldef, coldef)
-	}
-
-	tabText := "Current channels: "
-
-	tbprint(0, 0, termbox.ColorWhite, coldef, tabText)
-
-	var j = len(tabText) + 1
-	for i := 0; i < len(client.ChatBoxList); i++ {
-
-		if client.CurrentChatBox == client.ChatBoxList[i] {
-			tbprint(j, 0, termbox.ColorBlack, termbox.ColorWhite, client.ChatBoxList[i])
-		} else {
-			tbprint(j, 0, termbox.ColorWhite, termbox.ColorBlack, client.ChatBoxList[i])
-		}
-
-		j += len(client.ChatBoxList[i]) + 1
-	}
-
-	//draw the sidebar if it's active
-
-	if client.SidebarActive {
-		for i := 0; i < len(sideBarOptions); i++ {
-			tbprint(w-30, i, termbox.ColorWhite, coldef, sideBarOptions[i])
-		}
-
-		//TODO make chat mode more flexible maybe map it or something
-		modeText := "current mode: "
-		tbprint(w-30, len(sideBarOptions), termbox.ColorWhite, coldef, modeText)
-		if client.ChatMode == 0 {
-			tbprint(w-30+len(modeText), len(sideBarOptions), termbox.ColorBlue, coldef, "normal")
-		} else {
-			tbprint(w-30+len(modeText), len(sideBarOptions), termbox.ColorRed, coldef, "fullwidth")
-		}
-		tbprint(w-30, len(sideBarOptions)+1, termbox.ColorWhite, coldef, "Total Messages received: "+strconv.Itoa(totalMessages))
-	}
-
-	//draw user input
-	userString := client.Username + ": " + uInput
-	tbprint(1, h-1, termbox.ColorBlue, coldef, userString)
-	termbox.SetCursor(len(userString)+1, h-1)
-
-	//draw @ search menu
-	if strings.Contains(uInput, "@") && strings.Compare(atUsername(uInput), client.FoundUsername) != 0 {
-		client.SearchMenuOpen = true
-
-		possibleNames := Filter(client.ChatBoxes[client.CurrentChatBox].UserNames, func(v string) bool {
-			return strings.Contains(v, atUsername(uInput))
-		})
-
-		if len(possibleNames) > 0 {
-			client.FoundUsername = possibleNames[0]
-		}
-
-		for i := 0; i < len(possibleNames); i++ {
-			tbprint(1, h-i-2, termbox.ColorWhite, termbox.ColorWhite, "                             ")
-			tbprint(1, h-i-2, client.UserColors[possibleNames[i]], termbox.ColorWhite, possibleNames[i])
-		}
-	} else {
-		client.SearchMenuOpen = false
-	}
+	*/
 
 }
 
