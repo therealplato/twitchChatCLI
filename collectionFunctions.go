@@ -2,6 +2,8 @@ package main
 
 import "sort"
 
+// Filter keeps if f(v) == true
+// It discards all but the first 10 v
 func Filter(vs []string, f func(string) bool) []string {
 	vsf := make([]string, 0)
 	for _, v := range vs {
