@@ -61,6 +61,8 @@ func redraw_all() {
 		return
 	}
 	//draw the current chat lines
+	// for i := len(client.Boxes[client.Box].Lines)
+	// for i := len(client.BoxLines())
 	for i := len(client.ChatBoxes[client.CurrentChatBox].Lines) - 1; i >= 0; i-- {
 		tbprint(1, h-pos-2, client.ChatBoxes[client.CurrentChatBox].Lines[i].NickColor, coldef, client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": ")
 
@@ -103,6 +105,8 @@ func redraw_all() {
 
 		} else {
 			tbprint(1+len(client.ChatBoxes[client.CurrentChatBox].Lines[i].Nick+": "), h-pos-2, termbox.ColorWhite, termbox.ColorDefault, client.ChatBoxes[client.CurrentChatBox].Lines[i].Line)
+			// tbprint(1+len(client.BoxLines()[i].Nick+": "), h-pos-2, termbox.ColorWhite, termbox.ColorDefault, client.BoxLines()[i].Line)
+			// for i := len(client.BoxLines())
 		}
 
 		pos++
